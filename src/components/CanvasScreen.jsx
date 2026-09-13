@@ -43,21 +43,33 @@ export default function CanvasScreen({ project, onBack, onUpdate, onPersist, onT
     }));
     clearTimeout(saveTimerRef.current);
     saveTimerRef.current = setTimeout(async () => {
-      await onPersist({
-        ...project,
-        name: nextTitle !== undefined ? nextTitle : title,
-        nodes: nextNodes !== undefined ? nextNodes : nodes,
-        connections: nextConnections !== undefined ? nextConnections : connections
-      });
-      setSaveStatus('Tersimpan');
+      try {
+        await onPersist({
+          ...project,
+          name: nextTitle !== undefined ? nextTitle : title,
+          nodes: nextNodes !== undefined ? nextNodes : nodes,
+          connections: nextConnections !== undefined ? nextConnections : connections
+        });
+        setSaveStatus('Tersimpan');
+      } catch (err) {
+        console.error('Gagal menyimpan project:', err);
+        setSaveStatus('Gagal tersimpan');
+        onToast('Gagal menyimpan, coba lagi');
+      }
     }, 500);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes, connections, title, project, onUpdate, onPersist]);
+  }, [nodes, connections, title, project, onUpdate, onPersist, onToast]);
 
   const manualSave = async () => {
-    await onPersist({ ...project, name: title, nodes, connections });
-    setSaveStatus('Tersimpan');
-    onToast('Project disimpan');
+    try {
+      await onPersist({ ...project, name: title, nodes, connections });
+      setSaveStatus('Tersimpan');
+      onToast('Project disimpan');
+    } catch (err) {
+      console.error('Gagal menyimpan project:', err);
+      setSaveStatus('Gagal tersimpan');
+      onToast('Gagal menyimpan, coba lagi');
+    }
   };
 
   // ---------------- undo history ----------------
@@ -296,8 +308,13 @@ export default function CanvasScreen({ project, onBack, onUpdate, onPersist, onT
   const handleExportPdf = async () => {
     if (nodes.length === 0) { onToast('Canvas masih kosong'); return; }
     onToast('Menyiapkan PDF…');
-    await exportProjectToPdf({ name: title, nodes, connections }, nodeElRefs.current);
-    onToast('PDF diunduh');
+    try {
+      await exportProjectToPdf({ name: title, nodes, connections }, nodeElRefs.current);
+      onToast('PDF diunduh');
+    } catch (err) {
+      console.error('Gagal export PDF:', err);
+      onToast('Gagal membuat PDF');
+    }
   };
 
   return (
