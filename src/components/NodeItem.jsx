@@ -9,10 +9,12 @@ export default function NodeItem({
   const editingRef = useRef(false);
 
   // Sync node.text into the DOM only when it changes from OUTSIDE
-  // (e.g. undo). While the user is actively typing, never overwrite
-  // the live DOM content — that's what caused the reversed-text bug.
+  // (e.g. undo) AND the element is not currently focused. Checking
+  // activeElement (not just our own ref flag) is what actually prevents
+  // the caret-jumps-to-end bug: any prop update while focused must be
+  // ignored, because the DOM is already the source of truth mid-edit.
   useEffect(() => {
-    if (editingRef.current) return;
+    if (textRef.current && document.activeElement === textRef.current) return;
     if (textRef.current && textRef.current.textContent !== (node.text || '')) {
       textRef.current.textContent = node.text || '';
     }
