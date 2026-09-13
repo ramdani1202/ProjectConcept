@@ -3,9 +3,15 @@ export default function NodeItem({
   onPointerDownBody, onSelect, onDelete, onTextChange, onStartConnection
 }) {
   const handleBodyPointerDown = (e) => {
-    if (e.target.closest('.port') || e.target.closest('.node-text')) return;
+    if (e.target.closest('.port')) return;
+    // If the tap started on the text area AND the node is already selected
+    // (meaning the user deliberately tapped again to edit), let the text
+    // area handle it natively (caret placement) instead of dragging.
+    const onText = e.target.closest('.node-text');
+    if (onText && selected) return;
     onSelect();
     e.stopPropagation();
+    if (onText) e.preventDefault(); // avoid focusing/caret while we drag
     onPointerDownBody(e);
   };
 
@@ -35,10 +41,9 @@ export default function NodeItem({
         )}
         <div
           className="node-text"
-          contentEditable
+          contentEditable={selected}
           suppressContentEditableWarning
           data-placeholder="Tulis catatan…"
-          onPointerDown={(e) => e.stopPropagation()}
           onInput={(e) => onTextChange(e.target.textContent)}
         >
           {node.text}
