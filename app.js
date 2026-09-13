@@ -11,6 +11,8 @@ const state = {
   connectingFrom: null, // {nodeId, x, y}
   panState: null,
   saveTimer: null,
+  history: [],   // stack of {nodes, connections} snapshots for undo
+  historyLimit: 30,
 };
 
 const el = (id) => document.getElementById(id);
@@ -43,6 +45,44 @@ async function init(){
   renderProjectList();
 }
 init();
+
+// ---------------- Update checker ----------------
+const btnCheckUpdate = el('btn-check-update');
+
+async function checkForUpdate(showFeedback){
+  if(!('serviceWorker' in navigator)) return;
+  const reg = await navigator.serviceWorker.getRegistration();
+  if(!reg) return;
+  if(showFeedback) btnCheckUpdate.classList.add('spinning');
+  try{
+    await reg.update();
+    // give it a brief moment to detect + install if a new SW is found
+    setTimeout(()=>{
+      if(showFeedback){
+        btnCheckUpdate.classList.remove('spinning');
+        if(reg.waiting || reg.installing){
+          showToast('Update ditemukan, memuat…');
+        } else {
+          showToast('Sudah versi terbaru');
+        }
+      }
+    }, 900);
+  }catch(err){
+    if(showFeedback){ btnCheckUpdate.classList.remove('spinning'); showToast('Gagal cek update'); }
+  }
+}
+
+if(btnCheckUpdate){
+  btnCheckUpdate.addEventListener('click', ()=> checkForUpdate(true));
+}
+
+// auto check whenever the app becomes visible again (e.g. reopened from home screen)
+document.addEventListener('visibilitychange', ()=>{
+  if(document.visibilityState === 'visible') checkForUpdate(false);
+});
+window.addEventListener('focus', ()=> checkForUpdate(false));
+// also check once shortly after load
+setTimeout(()=> checkForUpdate(false), 2000);
 
 // ---------------- Project List ----------------
 function renderProjectList(){
@@ -114,12 +154,14 @@ async function deleteProject(id){
 // ---------------- Open / Navigate ----------------
 function openProject(id){
   state.currentProjectId = id;
+  state.history = [];
   const p = state.projects.find(x=>x.id===id);
   titleInput.value = p.name;
   state.scale = 1; state.panX = 0; state.panY = 0;
   applyTransform();
   renderCanvasNodes();
   renderConnections();
+  updateUndoButton();
   screenList.classList.remove('active');
   screenCanvas.classList.add('active');
 }
@@ -139,6 +181,39 @@ titleInput.addEventListener('input', ()=>{
 
 function currentProject(){
   return state.projects.find(p=>p.id === state.currentProjectId);
+}
+
+// ---------------- Undo history ----------------
+function pushHistory(){
+  const p = currentProject();
+  if(!p) return;
+  const snapshot = {
+    nodes: JSON.parse(JSON.stringify(p.nodes)),
+    connections: JSON.parse(JSON.stringify(p.connections))
+  };
+  state.history.push(snapshot);
+  if(state.history.length > state.historyLimit) state.history.shift();
+  updateUndoButton();
+}
+
+function undo(){
+  const p = currentProject();
+  if(!p || state.history.length === 0) return;
+  const snapshot = state.history.pop();
+  p.nodes = snapshot.nodes;
+  p.connections = snapshot.connections;
+  renderCanvasNodes();
+  renderConnections();
+  scheduleSave();
+  updateUndoButton();
+  showToast('Dikembalikan');
+}
+
+function updateUndoButton(){
+  const btn = el('btn-undo');
+  if(!btn) return;
+  btn.disabled = state.history.length === 0;
+  btn.style.opacity = state.history.length === 0 ? '0.4' : '1';
 }
 
 // ---------------- Autosave ----------------
@@ -293,6 +368,7 @@ function buildNodeEl(node){
     document.querySelectorAll('.node.selected').forEach(n=>n.classList.remove('selected'));
     div.classList.add('selected');
     e.stopPropagation();
+    pushHistory();
     try{ canvasViewport.setPointerCapture(e.pointerId); }catch(err){}
     const rect = canvasWorld.getBoundingClientRect();
     state.draggingNode = node.id;
@@ -352,6 +428,7 @@ function finishDraggingNode(){
 }
 
 function deleteNode(id){
+  pushHistory();
   const p = currentProject();
   p.nodes = p.nodes.filter(n=>n.id!==id);
   p.connections = p.connections.filter(c=>c.from!==id && c.to!==id);
@@ -363,6 +440,7 @@ function deleteNode(id){
 function addNode(type){
   const p = currentProject();
   if(!p) return;
+  pushHistory();
   // place new node near current view center
   const vw = canvasViewport.clientWidth, vh = canvasViewport.clientHeight;
   const centerX = (vw/2 - state.panX)/state.scale - 90;
@@ -393,6 +471,7 @@ fileInput.addEventListener('change', async (e)=>{
   if(!file) return;
   const dataUrl = await compressImageToDataUrl(file, 720, 0.72);
   const p = currentProject();
+  pushHistory();
   const vw = canvasViewport.clientWidth, vh = canvasViewport.clientHeight;
   const centerX = (vw/2 - state.panX)/state.scale - 90;
   const centerY = (vh/2 - state.panY)/state.scale - 60;
@@ -483,6 +562,7 @@ function completeConnection(toNodeId){
   const p = currentProject();
   const fromId = state.connectingFrom.nodeId;
   if(fromId !== toNodeId && !p.connections.some(c=>c.from===fromId && c.to===toNodeId)){
+    pushHistory();
     p.connections.push({id: uid(), from: fromId, to: toNodeId});
     scheduleSave();
   }
@@ -519,6 +599,7 @@ function renderConnections(){
     hit.addEventListener('pointerdown', (e)=>{
       e.stopPropagation();
       if(confirm('Hapus koneksi ini?')){
+        pushHistory();
         p.connections = p.connections.filter(x=>x.id!==c.id);
         renderConnections();
         scheduleSave();
@@ -540,6 +621,9 @@ function renderConnections(){
 // Simpler: tapping save-indicator triggers manual save.)
 el('save-indicator').addEventListener('click', manualSave);
 el('save-indicator').style.cursor = 'pointer';
+
+const btnUndo = el('btn-undo');
+if(btnUndo){ btnUndo.addEventListener('click', undo); }
 
 // ---------------- Export PDF ----------------
 el('btn-export-pdf').addEventListener('click', exportToPdf);

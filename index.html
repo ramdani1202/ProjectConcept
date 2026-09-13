@@ -50,6 +50,17 @@ html,body{
 .list-header .count{
   font-size:13px; color:var(--text-dim); font-family:var(--font-mono);
 }
+.update-check-btn{
+  width:28px; height:28px;
+  display:flex; align-items:center; justify-content:center;
+  background:var(--surface-2); border:1px solid var(--border);
+  border-radius:8px; color:var(--text-dim);
+  cursor:pointer; flex-shrink:0;
+}
+.update-check-btn:active{background:var(--border);}
+.update-check-btn.spinning svg{animation:spin 0.8s linear infinite;}
+.update-check-btn.has-update{color:var(--accent); border-color:var(--accent);}
+@keyframes spin{ from{transform:rotate(0deg);} to{transform:rotate(360deg);} }
 #project-grid{
   flex:1; overflow-y:auto;
   padding:8px 16px 100px;
@@ -293,7 +304,12 @@ input[type=file]{display:none;}
   <div id="screen-list" class="screen active">
     <div class="list-header">
       <h1>Project Concept</h1>
-      <span class="count" id="project-count">0 project</span>
+      <div style="display:flex; align-items:center; gap:10px;">
+        <button class="update-check-btn" id="btn-check-update" aria-label="Cek update">
+          <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 1 1-2.64-6.36" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><path d="M21 4v6h-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+        <span class="count" id="project-count">0 project</span>
+      </div>
     </div>
     <div id="project-grid"></div>
     <button class="fab" id="btn-new-project" aria-label="Project baru">
@@ -306,6 +322,9 @@ input[type=file]{display:none;}
     <div class="canvas-topbar">
       <button class="icon-btn" id="btn-back">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M15 18L9 12L15 6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+      <button class="icon-btn" id="btn-undo" title="Urungkan" aria-label="Urungkan" style="opacity:0.4;" disabled>
+        <svg width="19" height="19" viewBox="0 0 24 24" fill="none"><path d="M9 14L4 9L9 4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><path d="M4 9H15C18 9 20 11 20 14C20 17 18 19 15 19H8" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
       </button>
       <input id="project-title-input" value="Project baru" />
       <div class="save-indicator" id="save-indicator"><span class="dot"></span><span id="save-text">Tersimpan</span></div>
@@ -345,6 +364,12 @@ input[type=file]{display:none;}
 if('serviceWorker' in navigator){
   window.addEventListener('load', ()=>{
     navigator.serviceWorker.register('service-worker.js').catch(console.error);
+  });
+  let refreshing = false;
+  navigator.serviceWorker.addEventListener('controllerchange', ()=>{
+    if(refreshing) return;
+    refreshing = true;
+    window.location.reload();
   });
 }
 </script>

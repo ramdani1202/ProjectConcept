@@ -1,4 +1,4 @@
-const CACHE_NAME = 'project-concept-v1';
+const CACHE_NAME = 'project-concept-v3';
 const ASSETS = [
   './',
   './index.html',
@@ -26,22 +26,30 @@ self.addEventListener('activate', (event) => {
 });
 
 self.addEventListener('fetch', (event) => {
-  // network-first for navigation, cache-first for static assets
-  if (event.request.mode === 'navigate') {
+  const isSameOrigin = event.request.url.startsWith(self.location.origin);
+
+  // network-first for everything same-origin (HTML, JS, CSS, manifest, icons):
+  // always try to get the latest file first, fall back to cache only if offline.
+  if (isSameOrigin) {
     event.respondWith(
-      fetch(event.request).catch(() => caches.match('./index.html'))
+      fetch(event.request).then((response) => {
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+        return response;
+      }).catch(() => caches.match(event.request).then((cached) => {
+        return cached || (event.request.mode === 'navigate' ? caches.match('./index.html') : undefined);
+      }))
     );
     return;
   }
+
+  // cross-origin (e.g. jsPDF CDN): cache-first is fine, these are versioned URLs
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
       return fetch(event.request).then((response) => {
-        // Don't try to cache cross-origin (e.g. jsPDF CDN) responses that may be opaque
-        if (event.request.url.startsWith(self.location.origin)) {
-          const clone = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
-        }
+        const clone = response.clone();
+        caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
         return response;
       }).catch(() => cached);
     })
