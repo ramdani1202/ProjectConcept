@@ -1,0 +1,16 @@
+{
+  "name": "Project Concept",
+  "short_name": "ProjConcept",
+  "description": "Petakan konsep dan alur kerja project lewat canvas visual",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#FAF8F4",
+  "theme_color": "#FAF8F4",
+  "orientation": "any",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
