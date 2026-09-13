@@ -4,7 +4,7 @@ import { VitePWA } from 'vite-plugin-pwa'
 
 // PENTING: ganti 'project-concept' di bawah ini dengan nama repo GitHub kamu,
 // karena GitHub Pages menaruh situs di username.github.io/nama-repo/
-const REPO_NAME = 'project-concept'
+const REPO_NAME = 'ProjectConcept'
 
 export default defineConfig({
   base: `/${REPO_NAME}/`,
