@@ -61,50 +61,40 @@ export async function exportProjectToPdf(project, nodeElMap) {
   for (const n of nodes) {
     const { w, h } = dims[n.id];
     const x = n.x - minX, y = n.y - minY;
-    const g = document.createElementNS(svgNS, 'g');
 
-    const rect = document.createElementNS(svgNS, 'rect');
-    rect.setAttribute('x', x); rect.setAttribute('y', y);
-    rect.setAttribute('width', w); rect.setAttribute('height', h);
-    rect.setAttribute('fill', '#FFFFFF');
-    rect.setAttribute('stroke', '#E5DED2');
-    rect.setAttribute('rx', '2');
-    g.appendChild(rect);
+    const fo = document.createElementNS(svgNS, 'foreignObject');
+    fo.setAttribute('x', x); fo.setAttribute('y', y);
+    fo.setAttribute('width', w); fo.setAttribute('height', h);
 
-    let textY = y + 20;
+    const wrapper = document.createElement('div');
+    wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
+    wrapper.style.cssText = `
+      width:${w}px; height:${h}px;
+      background:#FFFFFF; border:1px solid #E5DED2; border-radius:14px;
+      overflow:hidden; box-sizing:border-box;
+      font-family:-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
+    `;
+
     if (n.image) {
-      const imgEl = nodeElMap[n.id]?.querySelector('img');
-      const imgH = imgEl ? imgEl.getBoundingClientRect().height : w * 0.625;
-      const img = document.createElementNS(svgNS, 'image');
-      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', n.image);
-      img.setAttribute('x', x); img.setAttribute('y', y);
-      img.setAttribute('width', w); img.setAttribute('height', imgH);
-      img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
-      g.appendChild(img);
-      textY = y + imgH + 20;
+      const imgTag = document.createElement('img');
+      imgTag.src = n.image;
+      imgTag.style.cssText = 'width:100%; height:auto; display:block;';
+      wrapper.appendChild(imgTag);
     }
 
     if (n.text) {
-      const words = n.text.split(' ');
-      let line = '', lines = [];
-      const maxCharsPerLine = Math.floor(w / 7);
-      for (const word of words) {
-        if ((line + word).length > maxCharsPerLine) { lines.push(line); line = word + ' '; }
-        else line += word + ' ';
-      }
-      if (line) lines.push(line);
-      lines.slice(0, 4).forEach((ln, i) => {
-        const text = document.createElementNS(svgNS, 'text');
-        text.setAttribute('x', x + 12);
-        text.setAttribute('y', textY + i * 16);
-        text.setAttribute('fill', '#2B2620');
-        text.setAttribute('font-size', '12');
-        text.setAttribute('font-family', 'sans-serif');
-        text.textContent = ln.trim();
-        g.appendChild(text);
-      });
+      const textDiv = document.createElement('div');
+      textDiv.style.cssText = `
+        padding:12px 14px; font-size:13.5px; line-height:1.5;
+        color:#2B2620; word-break:break-word; letter-spacing:-0.005em;
+        white-space:pre-wrap;
+      `;
+      textDiv.textContent = n.text;
+      wrapper.appendChild(textDiv);
     }
-    exportSvg.appendChild(g);
+
+    fo.appendChild(wrapper);
+    exportSvg.appendChild(fo);
   }
 
   const svgString = new XMLSerializer().serializeToString(exportSvg);
