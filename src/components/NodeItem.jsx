@@ -1,18 +1,52 @@
+import { useRef, useEffect } from 'react';
+
 export default function NodeItem({
   node, selected, registerEl,
   onPointerDownBody, onSelect, onDelete, onTextChange, onStartConnection
 }) {
+  const textRef = useRef(null);
+  const lastTapRef = useRef(0);
+  const editingRef = useRef(false);
+
+  // Sync node.text into the DOM only when it changes from OUTSIDE
+  // (e.g. undo). While the user is actively typing, never overwrite
+  // the live DOM content — that's what caused the reversed-text bug.
+  useEffect(() => {
+    if (editingRef.current) return;
+    if (textRef.current && textRef.current.textContent !== (node.text || '')) {
+      textRef.current.textContent = node.text || '';
+    }
+  }, [node.text]);
+
   const handleBodyPointerDown = (e) => {
     if (e.target.closest('.port')) return;
-    // If the tap started on the text area AND the node is already selected
-    // (meaning the user deliberately tapped again to edit), let the text
-    // area handle it natively (caret placement) instead of dragging.
     const onText = e.target.closest('.node-text');
-    if (onText && selected) return;
+    const now = Date.now();
+    const isDoubleTap = now - lastTapRef.current < 350;
+    lastTapRef.current = now;
+
     onSelect();
+
+    if (onText && isDoubleTap) {
+      // Deliberate double-tap on the text: let it focus for editing,
+      // don't start a drag.
+      editingRef.current = true;
+      return;
+    }
+
+    // Any other tap (single tap anywhere, including over the text)
+    // starts a drag instead of placing a caret.
     e.stopPropagation();
-    if (onText) e.preventDefault(); // avoid focusing/caret while we drag
+    e.preventDefault();
     onPointerDownBody(e);
+  };
+
+  const handleTextBlur = () => {
+    editingRef.current = false;
+  };
+
+  const handleTextInput = (e) => {
+    onTextChange(e.target.textContent);
   };
 
   return (
@@ -41,13 +75,13 @@ export default function NodeItem({
         )}
         <div
           className="node-text"
-          contentEditable={selected}
+          contentEditable
           suppressContentEditableWarning
-          data-placeholder="Tulis catatan…"
-          onInput={(e) => onTextChange(e.target.textContent)}
-        >
-          {node.text}
-        </div>
+          ref={textRef}
+          data-placeholder="Ketuk 2x untuk tulis catatan…"
+          onInput={handleTextInput}
+          onBlur={handleTextBlur}
+        />
       </div>
 
       <div className="port port-in" data-role="in" onPointerDown={(e) => { e.stopPropagation(); e.preventDefault(); }} />
