@@ -42,9 +42,24 @@ html,body{
 .list-header .count{
   font-size:13px; color:var(--text-dim); font-family:var(--font-mono);
 }
+.new-project-btn{
+  margin:4px 16px 10px;
+  height:46px;
+  display:flex; align-items:center; justify-content:center; gap:8px;
+  background:var(--accent);
+  color:#FFFFFF;
+  border:none;
+  border-radius:10px;
+  font-size:14px; font-weight:600; font-family:var(--font-ui);
+  cursor:pointer;
+  box-shadow:0 4px 14px -4px rgba(217,119,87,0.45);
+  flex-shrink:0;
+}
+.new-project-btn:active{transform:translateY(1px); box-shadow:0 2px 8px -3px rgba(217,119,87,0.4);}
+
 #project-grid{
   flex:1; overflow-y:auto;
-  padding:4px 16px 100px;
+  padding:4px 16px 24px;
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:10px;
@@ -97,19 +112,15 @@ html,body{
 .empty-state svg{margin-bottom:14px; opacity:0.5;}
 .empty-state p{margin:0; font-size:14px; line-height:1.6; max-width:280px;}
 
-.fab{
-  position:absolute; bottom:24px; right:20px;
-  width:56px; height:56px;
-  background:var(--accent);
-  color:#FFFFFF;
-  border:none;
-  clip-path:polygon(0 0, calc(100% - 16px) 0, 100% 16px, 100% 100%, 0 100%);
-  display:flex; align-items:center; justify-content:center;
-  cursor:pointer;
-  box-shadow:0 4px 16px rgba(217,119,87,0.3);
-  z-index:5;
+.app-watermark{
+  position:absolute; bottom:14px; left:0; right:0;
+  text-align:center;
+  font-size:11px; letter-spacing:0.08em;
+  color:var(--text-dim);
+  opacity:0.35;
+  pointer-events:none;
+  user-select:none;
 }
-.fab:active{transform:scale(0.94);}
 
 /* ---------- Canvas Screen ---------- */
 #screen-canvas{background:var(--bg);}
