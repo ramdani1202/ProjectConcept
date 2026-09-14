@@ -44,6 +44,14 @@ export default function App() {
     setProjects((prev) => prev.map((p) => (p.id === id ? updater(p) : p)));
   }, []);
 
+  const renameProject = useCallback(async (id, name) => {
+    setProjects((prev) => prev.map((p) => (p.id === id ? { ...p, name, updatedAt: Date.now() } : p)));
+    const target = projects.find((p) => p.id === id);
+    if (target) {
+      await DB.put({ ...target, name, updatedAt: Date.now() });
+    }
+  }, [projects]);
+
   const persistProject = useCallback(async (project) => {
     const toSave = { ...project, updatedAt: Date.now() };
     await DB.put(toSave);
@@ -61,6 +69,7 @@ export default function App() {
           onOpen={setCurrentId}
           onCreate={createProject}
           onDelete={deleteProject}
+          onRename={renameProject}
         />
       )}
       {currentProject && (
