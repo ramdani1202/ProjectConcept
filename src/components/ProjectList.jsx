@@ -23,6 +23,13 @@ export default function ProjectList({ projects, onOpen, onCreate, onDelete, onRe
         <span className="count">{projects.length} project</span>
       </div>
 
+      <button className="new-project-btn" onClick={onCreate}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+          <path d="M12 5V19M5 12H19" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
+        </svg>
+        <span>Project baru</span>
+      </button>
+
       <div id="project-grid">
         {sorted.length === 0 && (
           <div className="empty-state">
@@ -60,11 +67,7 @@ export default function ProjectList({ projects, onOpen, onCreate, onDelete, onRe
         })}
       </div>
 
-      <button className="fab" onClick={onCreate} aria-label="Project baru">
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none">
-          <path d="M12 5V19M5 12H19" stroke="#FFFFFF" strokeWidth="2.4" strokeLinecap="round" />
-        </svg>
-      </button>
+      <div className="app-watermark">Human's Daya Crop</div>
     </div>
   );
 }
