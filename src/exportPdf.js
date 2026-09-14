@@ -20,10 +20,42 @@ export async function exportProjectToPdf(project, nodeElMap) {
 
   let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
   const dims = {};
+
+  // pre-measure text wrapping to compute accurate export height per node,
+  // since a node's on-screen height (from the live app) may differ once
+  // we re-wrap at export time — this prevents text overflowing the box.
+  const measureCanvasPre = document.createElement('canvas');
+  const measureCtxPre = measureCanvasPre.getContext('2d');
+  measureCtxPre.font = '13.5px -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", sans-serif';
+  function preWrapLineCount(text, maxWidth) {
+    const words = text.split(/\s+/).filter(Boolean);
+    let lines = 0, line = '';
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (measureCtxPre.measureText(test).width > maxWidth && line) {
+        lines++;
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines++;
+    return Math.max(lines, 1);
+  }
+
   nodes.forEach((n) => {
     const el = nodeElMap[n.id];
     const w = el ? el.offsetWidth : 160;
-    const h = el ? el.offsetHeight : 60;
+    let h = el ? el.offsetHeight : 60;
+
+    if (n.text) {
+      const lineCount = preWrapLineCount(n.text, w - 28);
+      const imgEl = el ? el.querySelector('img') : null;
+      const imgH = imgEl ? imgEl.getBoundingClientRect().height : 0;
+      const neededH = imgH + 24 + lineCount * 19 + 14; // top offset + lines + bottom padding
+      h = Math.max(h, neededH);
+    }
+
     dims[n.id] = { w, h };
     minX = Math.min(minX, n.x); minY = Math.min(minY, n.y);
     maxX = Math.max(maxX, n.x + w); maxY = Math.max(maxY, n.y + h);
@@ -58,43 +90,83 @@ export async function exportProjectToPdf(project, nodeElMap) {
     exportSvg.appendChild(path);
   }
 
+  // Helper: wrap text into lines that actually fit the node width,
+  // using a temporary canvas to measure real text width (accurate,
+  // unlike the old fixed-chars-per-line guess that cut text off).
+  const measureCanvas = document.createElement('canvas');
+  const measureCtx = measureCanvas.getContext('2d');
+  measureCtx.font = '13.5px -apple-system, BlinkMacSystemFont, Inter, "Segoe UI", sans-serif';
+  const innerTextWidth = (w) => w - 28; // padding 14px each side
+
+  function wrapText(text, maxWidth) {
+    const words = text.split(/\s+/).filter(Boolean);
+    const lines = [];
+    let line = '';
+    for (const word of words) {
+      const test = line ? line + ' ' + word : word;
+      if (measureCtx.measureText(test).width > maxWidth && line) {
+        lines.push(line);
+        line = word;
+      } else {
+        line = test;
+      }
+    }
+    if (line) lines.push(line);
+    return lines;
+  }
+
   for (const n of nodes) {
     const { w, h } = dims[n.id];
     const x = n.x - minX, y = n.y - minY;
+    const g = document.createElementNS(svgNS, 'g');
 
-    const fo = document.createElementNS(svgNS, 'foreignObject');
-    fo.setAttribute('x', x); fo.setAttribute('y', y);
-    fo.setAttribute('width', w); fo.setAttribute('height', h);
+    const rect = document.createElementNS(svgNS, 'rect');
+    rect.setAttribute('x', x); rect.setAttribute('y', y);
+    rect.setAttribute('width', w); rect.setAttribute('height', h);
+    rect.setAttribute('fill', '#FFFFFF');
+    rect.setAttribute('stroke', '#E5DED2');
+    rect.setAttribute('rx', '14');
+    g.appendChild(rect);
 
-    const wrapper = document.createElement('div');
-    wrapper.setAttribute('xmlns', 'http://www.w3.org/1999/xhtml');
-    wrapper.style.cssText = `
-      width:${w}px; height:${h}px;
-      background:#FFFFFF; border:1px solid #E5DED2; border-radius:14px;
-      overflow:hidden; box-sizing:border-box;
-      font-family:-apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", sans-serif;
-    `;
+    // clip so the image respects the rounded corners like in the app
+    const clipId = `clip-${n.id}`;
+    const clipPath = document.createElementNS(svgNS, 'clipPath');
+    clipPath.setAttribute('id', clipId);
+    const clipRect = document.createElementNS(svgNS, 'rect');
+    clipRect.setAttribute('x', x); clipRect.setAttribute('y', y);
+    clipRect.setAttribute('width', w); clipRect.setAttribute('height', h);
+    clipRect.setAttribute('rx', '14');
+    clipPath.appendChild(clipRect);
+    exportSvg.appendChild(clipPath);
+    g.setAttribute('clip-path', `url(#${clipId})`);
 
+    let textY = y + 24;
     if (n.image) {
-      const imgTag = document.createElement('img');
-      imgTag.src = n.image;
-      imgTag.style.cssText = 'width:100%; height:auto; display:block;';
-      wrapper.appendChild(imgTag);
+      const imgEl = nodeElMap[n.id]?.querySelector('img');
+      const imgH = imgEl ? imgEl.getBoundingClientRect().height : w * 0.625;
+      const img = document.createElementNS(svgNS, 'image');
+      img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', n.image);
+      img.setAttribute('x', x); img.setAttribute('y', y);
+      img.setAttribute('width', w); img.setAttribute('height', imgH);
+      img.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+      g.appendChild(img);
+      textY = y + imgH + 24;
     }
 
     if (n.text) {
-      const textDiv = document.createElement('div');
-      textDiv.style.cssText = `
-        padding:12px 14px; font-size:13.5px; line-height:1.5;
-        color:#2B2620; word-break:break-word; letter-spacing:-0.005em;
-        white-space:pre-wrap;
-      `;
-      textDiv.textContent = n.text;
-      wrapper.appendChild(textDiv);
+      const lines = wrapText(n.text, innerTextWidth(w));
+      lines.forEach((ln, i) => {
+        const text = document.createElementNS(svgNS, 'text');
+        text.setAttribute('x', x + 14);
+        text.setAttribute('y', textY + i * 19);
+        text.setAttribute('fill', '#2B2620');
+        text.setAttribute('font-size', '13.5');
+        text.setAttribute('font-family', '-apple-system, BlinkMacSystemFont, Inter, "Segoe UI", sans-serif');
+        text.textContent = ln;
+        g.appendChild(text);
+      });
     }
-
-    fo.appendChild(wrapper);
-    exportSvg.appendChild(fo);
+    exportSvg.appendChild(g);
   }
 
   const svgString = new XMLSerializer().serializeToString(exportSvg);
@@ -102,19 +174,30 @@ export async function exportProjectToPdf(project, nodeElMap) {
   const url = URL.createObjectURL(svgBlob);
 
   return new Promise((resolve, reject) => {
+    let settled = false;
+    const timeoutId = setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      URL.revokeObjectURL(url);
+      reject(new Error('Export PDF timeout — proses render terlalu lama (kemungkinan gambar gagal dimuat di dalam SVG)'));
+    }, 8000);
+
     const img = new Image();
     img.onload = async () => {
-      const scaleFactor = 2;
-      const canvas = document.createElement('canvas');
-      canvas.width = totalW * scaleFactor;
-      canvas.height = totalH * scaleFactor;
-      const ctx = canvas.getContext('2d');
-      ctx.scale(scaleFactor, scaleFactor);
-      ctx.drawImage(img, 0, 0, totalW, totalH);
-      URL.revokeObjectURL(url);
-
-      const imgData = canvas.toDataURL('image/jpeg', 0.92);
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
       try {
+        const scaleFactor = 2;
+        const canvas = document.createElement('canvas');
+        canvas.width = totalW * scaleFactor;
+        canvas.height = totalH * scaleFactor;
+        const ctx = canvas.getContext('2d');
+        ctx.scale(scaleFactor, scaleFactor);
+        ctx.drawImage(img, 0, 0, totalW, totalH);
+        URL.revokeObjectURL(url);
+
+        const imgData = canvas.toDataURL('image/jpeg', 0.92);
         await ensureJsPdfLoaded();
         const { jsPDF } = window.jspdf;
         const orientation = totalW > totalH ? 'landscape' : 'portrait';
@@ -127,7 +210,13 @@ export async function exportProjectToPdf(project, nodeElMap) {
         reject(err);
       }
     };
-    img.onerror = reject;
+    img.onerror = (e) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      URL.revokeObjectURL(url);
+      reject(new Error('Gagal memuat gambar SVG untuk export (kemungkinan gambar di dalam node bermasalah)'));
+    };
     img.src = url;
   });
 }
